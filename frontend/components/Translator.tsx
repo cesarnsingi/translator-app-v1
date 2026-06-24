@@ -162,7 +162,7 @@ export default function Translator() {
       </div>
 
       <p className="mt-6 text-center text-xs text-neutral-700">
-        Ctrl + Enter to translate · Next.js frontend · FastAPI backend · Claude AI
+        Ctrl + Enter to translate · Next.js frontend · FastAPI backend · EMA AI
       </p>
     </div>
   );
