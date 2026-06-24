@@ -1,7 +1,7 @@
 import json
 import os
 
-import anthropic
+import google.generativeai as genai
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
@@ -11,12 +11,13 @@ app = FastAPI(title="Translator API", version="1.0.0")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],  # Next.js dev server
-    allow_methods=["POST"],
-    allow_headers=["Content-Type"],
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
-client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
+genai.configure(api_key=os.environ["GEMINI_API_KEY"])
+model = genai.GenerativeModel("gemini-1.5-flash")
 
 # ── Schemas ───────────────────────────────────────────────────────────────────
 class TranslateRequest(BaseModel):
@@ -36,22 +37,19 @@ def health() -> dict:
 
 @app.post("/translate", response_model=TranslationResult)
 def translate(body: TranslateRequest) -> TranslationResult:
-    message = client.messages.create(
-        model="claude-opus-4-5",
-        max_tokens=1024,
-        system=(
-            "You are a professional translator. Translate English text into French and Portuguese. "
-            'Respond ONLY with valid JSON, no markdown, no backticks. '
-            'Format: {"french":"...","portuguese":"..."}. '
-            "Produce natural, idiomatic translations."
-        ),
-        messages=[{"role": "user", "content": f"Translate:\n\n{body.text}"}],
+    prompt = (
+        "You are a professional translator. Translate the English text below into French and Portuguese. "
+        'Respond ONLY with valid JSON, no markdown, no backticks. '
+        'Format: {"french":"...","portuguese":"..."}. '
+        "Produce natural, idiomatic translations.\n\n"
+        f"Translate:\n\n{body.text}"
     )
 
-    raw = "".join(block.text for block in message.content if block.type == "text")
+    response = model.generate_content(prompt)
+    raw = response.text.strip().replace("```json", "").replace("```", "").strip()
 
     try:
-        data = json.loads(raw.strip())
+        data = json.loads(raw)
         return TranslationResult(**data)
     except (json.JSONDecodeError, KeyError) as exc:
         raise HTTPException(status_code=500, detail=f"Failed to parse model response: {exc}") from exc
